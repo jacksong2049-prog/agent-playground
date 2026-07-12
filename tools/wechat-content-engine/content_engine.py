@@ -109,14 +109,17 @@ def get_wechat_access_token() -> str:
     return data["access_token"]
 
 
-def create_wechat_draft(article: dict) -> dict:
+def create_wechat_draft(article: dict, cover_media_id: str | None = None) -> dict:
     token = get_wechat_access_token()
+    media_id = (cover_media_id or article.get("cover_media_id") or os.getenv("WECHAT_COVER_MEDIA_ID", "")).strip()
+    if not media_id:
+        raise ValueError("缺少封面素材 media_id，请先上传封面或配置 WECHAT_COVER_MEDIA_ID。")
     payload = {"articles": [{
         "title": article["title"],
         "author": os.getenv("WECHAT_AUTHOR", "JACKSONG"),
         "digest": article["digest"],
         "content": article["content_html"],
-        "thumb_media_id": os.environ["WECHAT_COVER_MEDIA_ID"],
+        "thumb_media_id": media_id,
         "need_open_comment": 1,
         "only_fans_can_comment": 0,
     }]}
@@ -140,7 +143,7 @@ def main() -> None:
     path = os.path.join(output_dir, f"article-{datetime.now(timezone.utc):%Y%m%d-%H%M%S}.json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(article, f, ensure_ascii=False, indent=2)
-    ready = all(os.getenv(k) for k in ("WECHAT_APP_ID", "WECHAT_APP_SECRET", "WECHAT_COVER_MEDIA_ID"))
+    ready = all(os.getenv(k) for k in ("WECHAT_APP_ID", "WECHAT_APP_SECRET")) and bool(os.getenv("WECHAT_COVER_MEDIA_ID"))
     result = create_wechat_draft(article) if ready else "skipped: WeChat credentials incomplete"
     print(json.dumps({"saved": path, "wechat": result}, ensure_ascii=False))
 
