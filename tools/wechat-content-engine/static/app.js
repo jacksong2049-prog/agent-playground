@@ -1,5 +1,7 @@
 let currentArticle = null;
-let wechatReady = false;
+let wechatCredentialsReady = false;
+let coverMediaId = "";
+let latestAudit = null;
 
 const $ = (id) => document.getElementById(id);
 const setMessage = (text, error = false) => {
@@ -8,7 +10,8 @@ const setMessage = (text, error = false) => {
 };
 
 async function request(url, options = {}) {
-  const response = await fetch(url, {headers: {"Content-Type": "application/json"}, ...options});
+  const headers = options.body instanceof FormData ? {} : {"Content-Type": "application/json"};
+  const response = await fetch(url, {headers, ...options});
   const data = await response.json();
   if (!response.ok) throw new Error(data.detail || "请求失败");
   return data;
@@ -17,11 +20,20 @@ async function request(url, options = {}) {
 async function loadStatus() {
   try {
     const data = await request("/api/status");
-    wechatReady = data.wechat_ready;
-    $("status").innerHTML = `AI：${data.openai_ready ? "已配置" : "未配置"}<br>微信：${data.wechat_ready ? "已配置" : "未配置"}<br>模型：${data.model}`;
+    wechatCredentialsReady = data.wechat_credentials_ready;
+    $("status").innerHTML = `AI：${data.openai_ready ? "已配置" : "未配置"}<br>微信凭证：${data.wechat_credentials_ready ? "已配置" : "未配置"}<br>封面：${data.cover_ready ? "已就绪" : "未就绪"}<br>模型：${data.model}`;
+    if (data.cover_ready) $("coverStatus").textContent = "封面：已配置或已上传";
+    updateDraftButton();
   } catch (error) {
     $("status").textContent = error.message;
   }
+}
+
+function updateDraftButton() {
+  const hasCover = Boolean(coverMediaId) || $("coverStatus").textContent.includes("已配置");
+  const auditPassed = latestAudit && latestAudit.passed;
+  const warningsAccepted = !latestAudit || latestAudit.warnings === 0 || $("warningAck").checked;
+  $("draftBtn").disabled = !(currentArticle && wechatCredentialsReady && hasCover && auditPassed && warningsAccepted);
 }
 
 function selectedUrls() {
@@ -52,7 +64,18 @@ function articleFromEditor() {
   };
 }
 
-function renderArticle(article) {
+function renderAudit(report) {
+  latestAudit = report;
+  const label = report.passed ? `通过：${report.warnings} 个警告` : `未通过：${report.errors} 个错误`;
+  $("audit").textContent = label;
+  $("auditIssues").classList.remove("empty");
+  $("auditIssues").innerHTML = report.issues.length
+    ? report.issues.map((issue) => `<div class="audit-item ${issue.level}"><strong>${issue.level === "error" ? "错误" : "警告"}</strong> ${issue.message}${issue.excerpt ? ` <code>${issue.excerpt}</code>` : ""}</div>`).join("")
+    : '<div class="audit-item success">未发现明显风险。</div>';
+  updateDraftButton();
+}
+
+function renderArticle(article, report) {
   currentArticle = article;
   $("article").classList.remove("empty");
   $("article").innerHTML = `
@@ -61,8 +84,9 @@ function renderArticle(article) {
     <label>正文 HTML<textarea id="contentInput" rows="18">${article.content_html}</textarea></label>
     <h3>渲染预览</h3>
     <article class="wechat-preview">${article.content_html}</article>`;
-  $("audit").textContent = "已通过基础检查";
-  $("draftBtn").disabled = !wechatReady;
+  $("auditBtn").disabled = false;
+  $("warningAck").checked = false;
+  renderAudit(report);
 }
 
 $("collectBtn").addEventListener("click", async () => {
@@ -82,24 +106,59 @@ $("generateBtn").addEventListener("click", async () => {
       method: "POST",
       body: JSON.stringify({selected_urls: selectedUrls()}),
     });
-    renderArticle(data.article);
+    renderArticle(data.article, data.audit);
     setMessage(`文章已生成并保存为 ${data.saved}`);
   } catch (error) { setMessage(error.message, true); }
   finally { $("generateBtn").disabled = false; }
 });
 
+$("auditBtn").addEventListener("click", async () => {
+  setMessage("正在重新审核当前版本…");
+  try {
+    const data = await request("/api/audit", {
+      method: "POST",
+      body: JSON.stringify({article: articleFromEditor()}),
+    });
+    currentArticle = articleFromEditor();
+    renderAudit(data.audit);
+    setMessage("审核完成。请逐项核对警告。");
+  } catch (error) { setMessage(error.message, true); }
+});
+
+$("coverInput").addEventListener("change", async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  const form = new FormData();
+  form.append("file", file);
+  setMessage("正在上传封面到微信公众号永久素材库…");
+  try {
+    const data = await request("/api/cover", {method: "POST", body: form});
+    coverMediaId = data.media_id;
+    $("coverStatus").textContent = `封面：上传成功（media_id ${data.media_id.slice(0, 10)}…）`;
+    setMessage("封面上传成功。");
+    updateDraftButton();
+  } catch (error) { setMessage(error.message, true); }
+  finally { event.target.value = ""; }
+});
+
+$("warningAck").addEventListener("change", updateDraftButton);
+
 $("draftBtn").addEventListener("click", async () => {
-  if (!confirm("确认把当前版本推送到微信公众号草稿箱？")) return;
-  setMessage("正在推送草稿箱…");
+  if (!confirm("确认已核对来源、数字、引语和当前正文，并推送到微信公众号草稿箱？")) return;
+  setMessage("正在进行最终审核并推送草稿箱…");
   $("draftBtn").disabled = true;
   try {
     const data = await request("/api/draft", {
       method: "POST",
-      body: JSON.stringify({article: articleFromEditor()}),
+      body: JSON.stringify({
+        article: articleFromEditor(),
+        acknowledged_warnings: $("warningAck").checked,
+        cover_media_id: coverMediaId,
+      }),
     });
     setMessage(`推送成功，media_id：${data.result.media_id || "已创建"}`);
   } catch (error) { setMessage(error.message, true); }
-  finally { $("draftBtn").disabled = !wechatReady; }
+  finally { updateDraftButton(); }
 });
 
 loadStatus();
