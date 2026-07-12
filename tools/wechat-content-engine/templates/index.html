@@ -20,8 +20,15 @@
     <section class="toolbar card">
       <button id="collectBtn">1. 采集全球热点</button>
       <button id="generateBtn" disabled>2. 生成公众号文章</button>
-      <button id="draftBtn" disabled>3. 推送草稿箱</button>
+      <button id="auditBtn" disabled>3. 重新审核</button>
+      <label class="upload-button">4. 上传封面<input id="coverInput" type="file" accept="image/png,image/jpeg,image/gif,image/bmp" hidden></label>
+      <button id="draftBtn" disabled>5. 推送草稿箱</button>
       <span id="message"></span>
+    </section>
+
+    <section class="review card">
+      <label><input id="warningAck" type="checkbox"> 我已逐项核对审核警告、来源、数字和引语，并确认当前版本可以进入草稿箱。</label>
+      <div id="coverStatus">封面：尚未上传</div>
     </section>
 
     <section class="grid">
@@ -35,9 +42,10 @@
 
       <div class="card panel">
         <div class="panel-title">
-          <h2>文章预览</h2>
+          <h2>文章与审核</h2>
           <span id="audit">待生成</span>
         </div>
+        <div id="auditIssues" class="audit-issues empty">生成文章后显示风险检查结果。</div>
         <div id="article" class="article empty">生成后可在这里预览，并在推送前修改标题、摘要和正文。</div>
       </div>
     </section>
