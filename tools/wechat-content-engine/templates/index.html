@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AI行动营内容引擎</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div>
+        <p class="eyebrow">AI ACTION CAMP</p>
+        <h1>微信公众号内容引擎</h1>
+        <p class="sub">采集全球热点，生成原创文章，人工审核后一键进入公众号草稿箱。</p>
+      </div>
+      <div id="status" class="status">正在检查配置…</div>
+    </header>
+
+    <section class="toolbar card">
+      <input id="adminTokenInput" type="password" autocomplete="current-password" placeholder="管理口令">
+      <button id="saveTokenBtn">保存口令</button>
+      <button id="collectBtn">1. 采集全球热点</button>
+      <button id="generateBtn" disabled>2. 生成公众号文章</button>
+      <button id="auditBtn" disabled>3. 重新审核</button>
+      <label class="upload-button">4. 上传封面<input id="coverInput" type="file" accept="image/png,image/jpeg,image/gif,image/bmp" hidden></label>
+      <button id="draftBtn" disabled>5. 推送草稿箱</button>
+      <span id="message"></span>
+    </section>
+
+    <section class="review card">
+      <label><input id="warningAck" type="checkbox"> 我已逐项核对审核警告、来源、数字和引语，并确认当前版本可以进入草稿箱。</label>
+      <div id="coverStatus">封面：尚未上传</div>
+    </section>
+
+    <section class="grid">
+      <div class="card panel">
+        <div class="panel-title">
+          <h2>热点来源</h2>
+          <span id="sourceCount">0 条</span>
+        </div>
+        <div id="sources" class="sources empty">点击“采集全球热点”开始。</div>
+      </div>
+
+      <div class="card panel">
+        <div class="panel-title">
+          <h2>文章与审核</h2>
+          <span id="audit">待生成</span>
+        </div>
+        <div id="auditIssues" class="audit-issues empty">生成文章后显示风险检查结果。</div>
+        <div id="article" class="article empty">生成后可在这里预览，并在推送前修改标题、摘要和正文。</div>
+      </div>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>

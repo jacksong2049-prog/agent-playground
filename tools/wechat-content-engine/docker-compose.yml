@@ -1,0 +1,18 @@
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./output:/app/output
+      - ./uploads:/app/uploads
+
+  scheduler:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    command: ["python", "scheduler.py"]
+    volumes:
+      - ./output:/app/output
