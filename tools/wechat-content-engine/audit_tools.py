@@ -21,7 +21,7 @@ DEFAULT_SENSITIVE_WORDS = [
 ]
 
 RISK_PATTERNS = {
-    "unsupported_number": re.compile(r"(?<![\w])\d+(?:\.\d+)?(?:%|亿|万|美元|人民币|元)"),
+    "unsupported_number": re.compile(r"(?<![A-Za-z0-9_])\d+(?:\.\d+)?(?:%|亿|万|美元|人民币|元)"),
     "absolute_claim": re.compile(r"(一定会|必然|绝对|唯一|彻底取代|全部消失)"),
     "quote": re.compile(r"[“\"]([^”\"]{8,80})[”\"]"),
 }

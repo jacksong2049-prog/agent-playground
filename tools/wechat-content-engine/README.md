@@ -22,6 +22,7 @@
 4. 在自动打开的 `.env` 中填写 OpenAI 和微信公众号参数。
 5. 双击 `start.bat`。
 6. 浏览器访问 `http://127.0.0.1:8000`。
+7. 在页面中输入 `.env` 里的 `ADMIN_TOKEN` 后保存口令。
 
 辅助脚本：
 
@@ -56,6 +57,7 @@ python -m pytest -q
 ## 配置
 
 - `OPENAI_API_KEY`：模型密钥。
+- `ADMIN_TOKEN`：管理页面写操作口令；必须设置为不可猜测的随机值。
 - `OPENAI_MODEL`：默认 `gpt-5-mini`。
 - `WECHAT_APP_ID`、`WECHAT_APP_SECRET`：公众号开发者凭证。
 - `WECHAT_COVER_MEDIA_ID`：可选，已有永久封面素材 ID。
@@ -80,6 +82,7 @@ docker compose down
 ## 安全边界
 
 - 不在仓库提交任何真实密钥。
+- 所有采集、生成、上传和推送接口都要求管理口令。
 - 默认不会自动推送，必须人工点击并勾选复核确认。
 - 推送接口会在服务端再次审核，不能通过绕过前端规避。
 - 生成文章只能引用本轮采集到的来源 URL。

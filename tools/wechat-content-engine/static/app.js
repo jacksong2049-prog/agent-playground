@@ -4,6 +4,12 @@ let coverMediaId = "";
 let latestAudit = null;
 
 const $ = (id) => document.getElementById(id);
+const escapeHtml = (value) => String(value ?? "")
+  .replaceAll("&", "&amp;")
+  .replaceAll("<", "&lt;")
+  .replaceAll(">", "&gt;")
+  .replaceAll('"', "&quot;")
+  .replaceAll("'", "&#39;");
 const setMessage = (text, error = false) => {
   $("message").textContent = text;
   $("message").className = error ? "error" : "";
@@ -11,6 +17,8 @@ const setMessage = (text, error = false) => {
 
 async function request(url, options = {}) {
   const headers = options.body instanceof FormData ? {} : {"Content-Type": "application/json"};
+  const adminToken = sessionStorage.getItem("adminToken");
+  if (adminToken) headers.Authorization = `Bearer ${adminToken}`;
   const response = await fetch(url, {headers, ...options});
   const data = await response.json();
   if (!response.ok) throw new Error(data.detail || "请求失败");
@@ -47,9 +55,9 @@ function renderSources(items) {
     <label class="source-item">
       <input class="source-check" type="checkbox" value="${item.url}" ${index < 8 ? "checked" : ""}>
       <div>
-        <strong>${item.title}</strong>
-        <p>${item.summary || "暂无摘要"}</p>
-        <a href="${item.url}" target="_blank" rel="noreferrer">查看原文</a>
+        <strong>${escapeHtml(item.title)}</strong>
+        <p>${escapeHtml(item.summary || "暂无摘要")}</p>
+        <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">查看原文</a>
       </div>
     </label>`).join("");
   $("generateBtn").disabled = items.length === 0;
@@ -70,7 +78,7 @@ function renderAudit(report) {
   $("audit").textContent = label;
   $("auditIssues").classList.remove("empty");
   $("auditIssues").innerHTML = report.issues.length
-    ? report.issues.map((issue) => `<div class="audit-item ${issue.level}"><strong>${issue.level === "error" ? "错误" : "警告"}</strong> ${issue.message}${issue.excerpt ? ` <code>${issue.excerpt}</code>` : ""}</div>`).join("")
+    ? report.issues.map((issue) => `<div class="audit-item ${issue.level}"><strong>${issue.level === "error" ? "错误" : "警告"}</strong> ${escapeHtml(issue.message)}${issue.excerpt ? ` <code>${escapeHtml(issue.excerpt)}</code>` : ""}</div>`).join("")
     : '<div class="audit-item success">未发现明显风险。</div>';
   updateDraftButton();
 }
@@ -79,9 +87,9 @@ function renderArticle(article, report) {
   currentArticle = article;
   $("article").classList.remove("empty");
   $("article").innerHTML = `
-    <label>标题<input id="titleInput" maxlength="64" value="${article.title.replaceAll('"', '&quot;')}"></label>
-    <label>摘要<textarea id="digestInput" rows="3" maxlength="120">${article.digest}</textarea></label>
-    <label>正文 HTML<textarea id="contentInput" rows="18">${article.content_html}</textarea></label>
+    <label>标题<input id="titleInput" maxlength="64" value="${escapeHtml(article.title)}"></label>
+    <label>摘要<textarea id="digestInput" rows="3" maxlength="120">${escapeHtml(article.digest)}</textarea></label>
+    <label>正文 HTML<textarea id="contentInput" rows="18">${escapeHtml(article.content_html)}</textarea></label>
     <h3>渲染预览</h3>
     <article class="wechat-preview">${article.content_html}</article>`;
   $("auditBtn").disabled = false;
@@ -142,6 +150,13 @@ $("coverInput").addEventListener("change", async (event) => {
 });
 
 $("warningAck").addEventListener("change", updateDraftButton);
+
+$("saveTokenBtn").addEventListener("click", () => {
+  const token = $("adminTokenInput").value.trim();
+  if (token) sessionStorage.setItem("adminToken", token);
+  else sessionStorage.removeItem("adminToken");
+  setMessage(token ? "管理口令已在当前浏览器会话中保存。" : "管理口令已清除。");
+});
 
 $("draftBtn").addEventListener("click", async () => {
   if (!confirm("确认已核对来源、数字、引语和当前正文，并推送到微信公众号草稿箱？")) return;

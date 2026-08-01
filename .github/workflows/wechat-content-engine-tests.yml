@@ -1,0 +1,27 @@
+name: WeChat content engine tests
+
+on:
+  pull_request:
+    paths:
+      - "tools/wechat-content-engine/**"
+      - ".github/workflows/wechat-content-engine-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tools/wechat-content-engine/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/wechat-content-engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: tools/wechat-content-engine/requirements.txt
+      - run: python -m pip install -r requirements.txt
+      - run: python -m pytest -q

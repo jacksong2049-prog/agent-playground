@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import shutil
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.responses import JSONResponse
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -31,6 +33,19 @@ app = FastAPI(title="AI行动营内容引擎", version="0.3.0")
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 STATE: dict[str, object] = {"sources": [], "article": None, "audit": None, "cover_media_id": ""}
+
+
+@app.middleware("http")
+async def require_admin_token(request: Request, call_next):
+    if request.url.path.startswith("/api/") and request.method != "GET":
+        expected = os.getenv("ADMIN_TOKEN", "")
+        if not expected:
+            return JSONResponse(status_code=503, content={"detail": "ADMIN_TOKEN 尚未配置"})
+        authorization = request.headers.get("Authorization", "")
+        supplied = authorization.removeprefix("Bearer ") if authorization.startswith("Bearer ") else ""
+        if not supplied or not secrets.compare_digest(supplied, expected):
+            return JSONResponse(status_code=401, content={"detail": "未授权"})
+    return await call_next(request)
 
 
 class GenerateRequest(BaseModel):
@@ -147,7 +162,11 @@ async def upload_cover(file: UploadFile = File(...)) -> dict:
 def draft(payload: DraftRequest) -> dict:
     if not all(os.getenv(k) for k in ("WECHAT_APP_ID", "WECHAT_APP_SECRET")):
         raise HTTPException(status_code=400, detail="微信公众号 AppID 或 AppSecret 尚未配置。")
-    report = run_enhanced_audit(payload.article)
+    try:
+        article = audit_article(dict(payload.article), current_sources())
+    except (TypeError, ValueError, KeyError):
+        raise HTTPException(status_code=400, detail="文章字段或来源校验失败") from None
+    report = run_enhanced_audit(article)
     if not report["passed"]:
         raise HTTPException(status_code=400, detail="文章存在审核错误，请修正后再推送。")
     if report["warnings"] and not payload.acknowledged_warnings:
@@ -156,7 +175,7 @@ def draft(payload: DraftRequest) -> dict:
     if not media_id:
         raise HTTPException(status_code=400, detail="请先上传封面图，或配置 WECHAT_COVER_MEDIA_ID。")
     try:
-        result = create_wechat_draft(payload.article, media_id)
+        result = create_wechat_draft(article, media_id)
         return {"ok": True, "result": result, "audit": report}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc

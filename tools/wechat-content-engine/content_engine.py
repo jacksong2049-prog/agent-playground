@@ -5,6 +5,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Iterable
+from urllib.parse import urlparse
 
 import feedparser
 import httpx
@@ -35,7 +36,7 @@ def collect_rss_items(urls: Iterable[str], limit: int = 30) -> list[SourceItem]:
         for entry in feed.entries:
             url = str(entry.get("link", "")).strip()
             title = str(entry.get("title", "")).strip()
-            if not url or not title or url in seen:
+            if urlparse(url).scheme not in {"http", "https"} or not title or url in seen:
                 continue
             raw = str(entry.get("summary", entry.get("description", "")))
             summary = BeautifulSoup(raw, "html.parser").get_text(" ", strip=True)
@@ -80,6 +81,24 @@ source_notes为包含title和url的数组。
     return json.loads(response.output_text)
 
 
+def sanitize_article_html(content_html: str) -> str:
+    allowed_tags = {"p", "h2", "strong", "blockquote", "ul", "li", "a"}
+    soup = BeautifulSoup(content_html or "", "html.parser")
+    for tag in list(soup.find_all(["script", "style", "iframe", "object", "embed"])):
+        tag.decompose()
+    for tag in list(soup.find_all(True)):
+        if tag.name not in allowed_tags:
+            tag.unwrap()
+            continue
+        attrs = {}
+        if tag.name == "a":
+            href = str(tag.get("href", "")).strip()
+            if urlparse(href).scheme in {"http", "https"}:
+                attrs = {"href": href, "rel": "noopener noreferrer"}
+        tag.attrs = attrs
+    return str(soup)
+
+
 def audit_article(article: dict, sources: list[SourceItem]) -> dict:
     required = {"title", "digest", "content_html", "source_notes"}
     missing = required - set(article)
@@ -89,6 +108,7 @@ def audit_article(article: dict, sources: list[SourceItem]) -> dict:
         raise ValueError("WeChat title exceeds 64 characters")
     if len(article["digest"]) > 120:
         article["digest"] = article["digest"][:117] + "..."
+    article["content_html"] = sanitize_article_html(str(article["content_html"]))
     known_urls = {x.url for x in sources}
     unknown = [n.get("url") for n in article["source_notes"] if isinstance(n, dict) and n.get("url") not in known_urls]
     if unknown:
